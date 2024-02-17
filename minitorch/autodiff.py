@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable, List, Tuple
 
 from typing_extensions import Protocol
-
+from .operators import map
 # ## Task 1.1
 # Central Difference calculation
 
@@ -23,7 +23,12 @@ def central_difference(f: Any, *vals: Any, arg: int = 0, epsilon: float = 1e-6) 
         An approximation of $f'_i(x_0, \ldots, x_{n-1})$
     """
     # TODO: Implement for Task 1.1.
-    raise NotImplementedError('Need to implement for Task 1.1')
+    x_plus = list(vals)
+    x_min = list(vals)
+    x_plus[arg] = x_plus[arg] + epsilon
+    x_min[arg] = x_min[arg] - epsilon
+    f_prime = (f(*x_plus) - f(*x_min)) / (2 * epsilon)
+    return f_prime
 
 
 variable_count = 1
@@ -62,7 +67,21 @@ def topological_sort(variable: Variable) -> Iterable[Variable]:
         Non-constant Variables in topological order starting from the right.
     """
     # TODO: Implement for Task 1.4.
-    raise NotImplementedError('Need to implement for Task 1.4')
+    order = []
+    visited = set()
+
+    def visit(var):
+        if var.unique_id in visited:
+            return
+        if not var.is_leaf():
+            for m in var.parents:
+                if not m.is_constant():
+                    visit(m)
+        visited.add(var.unique_id)
+        order.insert(0, var)
+
+    visit(variable)
+    return order
 
 
 def backpropagate(variable: Variable, deriv: Any) -> None:
@@ -77,8 +96,24 @@ def backpropagate(variable: Variable, deriv: Any) -> None:
     No return. Should write to its results to the derivative values of each leaf through `accumulate_derivative`.
     """
     # TODO: Implement for Task 1.4.
-    raise NotImplementedError('Need to implement for Task 1.4')
-
+    # Call topological sort to get an ordered queue
+    # Create a dictionary of Scalars and current derivatives
+    # For each node in backward order, pull a completed Scalar and derivative from the queue: 
+    #     a. if the Scalar is a leaf, add its final derivative (accumulate_derivative) and loop to (1) 
+    #     b. if the Scalar is not a leaf, 
+    #         1) call .chain_rule on the last function with d_out
+    #         2) loop through all the Scalars+derivative produced by the chain rule 
+    #         3) accumulate derivatives for the Scalar in a dictionary
+    order = topological_sort(variable)
+    s_d_dict = {s.unique_id: s.derivative if not s.derivative is None else 0.0 for s in order}
+    s_d_dict[variable.unique_id] = deriv
+    for var in order:
+        if var.is_leaf():
+            var.accumulate_derivative(s_d_dict[var.unique_id])
+        else:
+            chain = var.chain_rule(s_d_dict[var.unique_id])
+            for s, d in chain:
+                s_d_dict[s.unique_id] += d
 
 @dataclass
 class Context:
